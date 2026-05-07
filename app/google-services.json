@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "591257033157",
+    "project_id": "streaker-2d4e2",
+    "storage_bucket": "streaker-2d4e2.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:591257033157:android:23e85b49bfa7edf47653ac",
+        "android_client_info": {
+          "package_name": "com.josiah.streaker"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "591257033157-q8g8mt7ju7k9su5pth6tnrmdi0t54fa1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.josiah.streaker",
+            "certificate_hash": "ddee29df1231fce977ac27772c0c6e150938e824"
+          }
+        },
+        {
+          "client_id": "591257033157-3nsn8mea6iv8dtg59rs510l4qcm64lbo.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA7HTPn42xYTMIkBIJRS_OMu5HZaOpCYHA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "591257033157-3nsn8mea6iv8dtg59rs510l4qcm64lbo.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
