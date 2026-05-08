@@ -10,15 +10,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.josiah.streaker.NotificationScheduler
 import com.josiah.streaker.ui.components.clickableNoRipple
 import com.josiah.streaker.ui.theme.AppColors
 import com.josiah.streaker.viewmodel.HabitViewModel
@@ -28,7 +32,9 @@ fun SettingsScreen(
     onBack:    () -> Unit,
     viewModel: HabitViewModel
 ) {
-    val user = viewModel.getCurrentUser()
+    val context     = LocalContext.current
+    val user        = viewModel.getCurrentUser()
+    val isDarkTheme by viewModel.isDarkTheme.collectAsStateWithLifecycle()
 
     var notificationsEnabled by remember { mutableStateOf(true) }
     var dailyReminderEnabled by remember { mutableStateOf(true) }
@@ -124,7 +130,11 @@ fun SettingsScreen(
                     title    = "Enable Notifications",
                     subtitle = "Get reminders to complete habits",
                     checked  = notificationsEnabled,
-                    onToggle = { notificationsEnabled = it }
+                    onToggle = {
+                        notificationsEnabled = it
+                        NotificationScheduler.scheduleDailyReminder(context, it && dailyReminderEnabled)
+                        NotificationScheduler.scheduleStreakAlert(context, it && streakAlertEnabled)
+                    }
                 )
                 SettingsDivider()
                 SettingsToggleRow(
@@ -132,7 +142,10 @@ fun SettingsScreen(
                     title    = "Daily Reminder",
                     subtitle = "Remind me every day at 9:00 AM",
                     checked  = dailyReminderEnabled,
-                    onToggle = { dailyReminderEnabled = it },
+                    onToggle = {
+                        dailyReminderEnabled = it
+                        NotificationScheduler.scheduleDailyReminder(context, it && notificationsEnabled)
+                    },
                     enabled  = notificationsEnabled
                 )
                 SettingsDivider()
@@ -141,7 +154,10 @@ fun SettingsScreen(
                     title    = "Streak at Risk Alert",
                     subtitle = "Alert me if I haven't completed by 8 PM",
                     checked  = streakAlertEnabled,
-                    onToggle = { streakAlertEnabled = it },
+                    onToggle = {
+                        streakAlertEnabled = it
+                        NotificationScheduler.scheduleStreakAlert(context, it && notificationsEnabled)
+                    },
                     enabled  = notificationsEnabled
                 )
             }
@@ -153,6 +169,14 @@ fun SettingsScreen(
             Spacer(Modifier.height(10.dp))
 
             SettingsCard {
+                SettingsToggleRow(
+                    icon     = Icons.Default.Star,
+                    title    = "Dark Mode",
+                    subtitle = "Switch between dark and light theme",
+                    checked  = isDarkTheme,
+                    onToggle = { viewModel.toggleTheme() }
+                )
+                SettingsDivider()
                 SettingsActionRow(
                     icon     = Icons.Default.Refresh,
                     title    = "Reset Today's Progress",
@@ -290,11 +314,11 @@ fun SettingsToggleRow(
 
 @Composable
 fun SettingsActionRow(
-    icon:    ImageVector,
-    title:   String,
+    icon:     ImageVector,
+    title:    String,
     subtitle: String,
-    tint:    Color    = AppColors.TextSecondary,
-    onClick: () -> Unit = {}
+    tint:     Color      = AppColors.TextSecondary,
+    onClick:  () -> Unit = {}
 ) {
     Row(
         modifier          = Modifier

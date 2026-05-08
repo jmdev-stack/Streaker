@@ -5,7 +5,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -22,8 +21,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.josiah.streaker.model.Habit
+import com.josiah.streaker.ui.components.AnimatedStreakText
 import com.josiah.streaker.ui.components.CelebrationOverlay
+import com.josiah.streaker.ui.components.DailyQuote
+import com.josiah.streaker.ui.components.GreetingText
+import com.josiah.streaker.ui.components.PulsingCompleteButton
+import com.josiah.streaker.ui.components.ShimmerLoadingScreen
+import com.josiah.streaker.ui.components.TodayProgressBar
 import com.josiah.streaker.ui.components.clickableNoRipple
+import com.josiah.streaker.ui.components.rememberHaptic
 import com.josiah.streaker.ui.theme.AppColors
 import com.josiah.streaker.viewmodel.HabitViewModel
 
@@ -37,29 +43,15 @@ fun HomeScreen(
     val habits            by viewModel.habits.collectAsStateWithLifecycle()
     val celebrationStreak by viewModel.celebrationStreak.collectAsStateWithLifecycle()
     val isLoading         by viewModel.isLoading.collectAsStateWithLifecycle()
+    val currentUser       = viewModel.getCurrentUser()
 
     val totalStreak   = habits.sumOf { it.streak }
     val doneToday     = habits.count { it.completedToday }
     val longestStreak = habits.maxOfOrNull { it.streak } ?: 0
 
-    // Loading state
+    // Shimmer loading
     if (isLoading) {
-        Box(
-            modifier         = Modifier
-                .fillMaxSize()
-                .background(AppColors.Background),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                CircularProgressIndicator(color = AppColors.Ember)
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    "Loading habits...",
-                    color    = AppColors.TextSecondary,
-                    fontSize = 14.sp
-                )
-            }
-        }
+        ShimmerLoadingScreen()
         return
     }
 
@@ -79,19 +71,8 @@ fun HomeScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment     = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        "Streaker",
-                        fontSize   = 28.sp,
-                        fontWeight = FontWeight.Black,
-                        color      = AppColors.TextPrimary
-                    )
-                    Text(
-                        "Keep the fire alive 🔥",
-                        fontSize = 13.sp,
-                        color    = AppColors.TextSecondary
-                    )
-                }
+                GreetingText(displayName = currentUser?.displayName)
+
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Box(
                         modifier = Modifier
@@ -127,43 +108,58 @@ fun HomeScreen(
                 }
             }
 
-            // ── Stats Row ────────────────────────────────────────────────────
-            Row(
-                modifier              = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            LazyColumn(
+                contentPadding      = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier            = Modifier.fillMaxSize()
             ) {
-                StatCard("Total 🔥", "$totalStreak", Modifier.weight(1f))
-                StatCard(
-                    label    = "Today",
-                    value    = "$doneToday / ${habits.size}",
-                    modifier = Modifier.weight(1f),
-                    accent   = if (habits.isNotEmpty() && doneToday == habits.size) AppColors.Success else null
-                )
-                StatCard("Best", "$longestStreak 🏆", Modifier.weight(1f), accent = AppColors.Gold)
-            }
 
-            Spacer(modifier = Modifier.height(20.dp))
+                // Stats Row
+                item {
+                    Row(
+                        modifier              = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        StatCard("Total 🔥", "$totalStreak", Modifier.weight(1f))
+                        StatCard(
+                            label    = "Today",
+                            value    = "$doneToday / ${habits.size}",
+                            modifier = Modifier.weight(1f),
+                            accent   = if (habits.isNotEmpty() && doneToday == habits.size) AppColors.Success else null
+                        )
+                        StatCard("Best", "$longestStreak 🏆", Modifier.weight(1f), accent = AppColors.Gold)
+                    }
+                }
 
-            if (habits.isEmpty()) {
-                EmptyState(onAddClick)
-            } else {
-                Text(
-                    "MY HABITS",
-                    fontSize      = 11.sp,
-                    fontWeight    = FontWeight.SemiBold,
-                    color         = AppColors.TextSecondary,
-                    letterSpacing = 1.sp,
-                    modifier      = Modifier.padding(horizontal = 20.dp)
-                )
-                Spacer(Modifier.height(10.dp))
+                // Progress Bar
+                item {
+                    if (habits.isNotEmpty()) {
+                        TodayProgressBar(done = doneToday, total = habits.size)
+                    }
+                }
 
-                LazyColumn(
-                    contentPadding      = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier            = Modifier.fillMaxSize()
-                ) {
+                // Daily Quote
+                item {
+                    DailyQuote()
+                }
+
+                // Section header
+                item {
+                    if (habits.isNotEmpty()) {
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "MY HABITS",
+                            fontSize      = 11.sp,
+                            fontWeight    = FontWeight.SemiBold,
+                            color         = AppColors.TextSecondary,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+
+                if (habits.isEmpty()) {
+                    item { EmptyState(onAddClick) }
+                } else {
                     items(habits, key = { it.id }) { habit ->
                         HabitCard(
                             habit      = habit,
@@ -172,12 +168,13 @@ fun HomeScreen(
                             onClick    = { onHabitClick(habit) }
                         )
                     }
-                    item { Spacer(Modifier.height(24.dp)) }
                 }
+
+                item { Spacer(Modifier.height(24.dp)) }
             }
         }
 
-        // ── Celebration Overlay ──────────────────────────────────────────────
+        // Celebration Overlay
         celebrationStreak?.let { streak ->
             CelebrationOverlay(
                 streak    = streak,
@@ -195,6 +192,7 @@ fun HabitCard(
     onClick:    () -> Unit
 ) {
     var showConfirm by remember { mutableStateOf(false) }
+    val haptic = rememberHaptic()
 
     Box(
         modifier = Modifier
@@ -215,6 +213,7 @@ fun HabitCard(
             modifier          = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Emoji badge
             Box(
                 modifier         = Modifier
                     .size(48.dp)
@@ -242,7 +241,7 @@ fun HabitCard(
                         habit.streak >= 7  -> AppColors.EmberLight
                         else               -> AppColors.TextSecondary
                     }
-                    Text("🔥 ${habit.streak} day streak", fontSize = 12.sp, color = streakColor)
+                    AnimatedStreakText(streak = habit.streak, color = streakColor)
                     if (habit.completedToday) {
                         Spacer(Modifier.width(8.dp))
                         Box(
@@ -264,27 +263,22 @@ fun HabitCard(
 
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (!habit.completedToday) {
-                    Box(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(AppColors.Ember.copy(.15f))
-                            .clickableNoRipple { onComplete() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.Check, "Complete",
-                            tint     = AppColors.Ember,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
+                    PulsingCompleteButton(
+                        onClick = {
+                            haptic()
+                            onComplete()
+                        }
+                    )
                 }
                 Box(
                     modifier = Modifier
                         .size(38.dp)
-                        .clip(CircleShape)
+                        .clip(androidx.compose.foundation.shape.CircleShape)
                         .background(AppColors.Destructive.copy(.12f))
-                        .clickableNoRipple { showConfirm = true },
+                        .clickableNoRipple {
+                            haptic()
+                            showConfirm = true
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

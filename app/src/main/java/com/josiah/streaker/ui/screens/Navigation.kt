@@ -3,7 +3,8 @@ package com.josiah.streaker.ui.screens
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -14,16 +15,15 @@ import com.google.firebase.ktx.Firebase
 import com.josiah.streaker.viewmodel.HabitViewModel
 
 @Composable
-fun AppNavigation() {
-    val navController         = rememberNavController()
-    val viewModel: HabitViewModel = viewModel()
-
-    val currentUser       = Firebase.auth.currentUser
+fun AppNavigation(viewModel: HabitViewModel) {
+    val navController     = rememberNavController()
+    val isSignedIn        by viewModel.isSignedIn.collectAsStateWithLifecycle()
     val hasSeenOnboarding = viewModel.hasSeenOnboarding()
-    val startDestination  = when {
-        currentUser != null -> "home"
-        hasSeenOnboarding   -> "signin"
-        else                -> "onboarding"
+
+    val startDestination = when {
+        Firebase.auth.currentUser != null -> "home"
+        hasSeenOnboarding                 -> "signin"
+        else                              -> "onboarding"
     }
 
     NavHost(
@@ -104,6 +104,16 @@ fun AppNavigation() {
                 onBack    = { navController.popBackStack() },
                 viewModel = viewModel
             )
+        }
+    }
+
+    // Listen for sign out and redirect to signin
+    if (!isSignedIn && Firebase.auth.currentUser == null) {
+        val current = navController.currentDestination?.route
+        if (current != "signin" && current != "onboarding") {
+            navController.navigate("signin") {
+                popUpTo(0) { inclusive = true }
+            }
         }
     }
 }

@@ -8,16 +8,20 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import com.josiah.streaker.HabitRepository
+import com.josiah.streaker.ThemePreference
 import com.josiah.streaker.model.Habit
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class HabitViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository = HabitRepository()
-    private val auth       = Firebase.auth
+    private val repository     = HabitRepository()
+    private val auth           = Firebase.auth
+    private val themePreference = ThemePreference(application)
 
     private val _habits = MutableStateFlow<List<Habit>>(emptyList())
     val habits: StateFlow<List<Habit>> = _habits
@@ -31,6 +35,13 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSignedIn = MutableStateFlow(auth.currentUser != null)
     val isSignedIn: StateFlow<Boolean> = _isSignedIn
 
+    val isDarkTheme: StateFlow<Boolean> = themePreference.isDarkTheme
+        .stateIn(
+            scope         = viewModelScope,
+            started       = SharingStarted.WhileSubscribed(5000),
+            initialValue  = true
+        )
+
     private val milestones = setOf(7, 14, 30, 60, 100, 365)
 
     init {
@@ -40,9 +51,15 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadHabits() {
         viewModelScope.launch {
             repository.getHabits().collect { habits ->
-                _habits.value = habits
+                _habits.value    = habits
                 _isLoading.value = false
             }
+        }
+    }
+
+    fun toggleTheme() {
+        viewModelScope.launch {
+            themePreference.setDarkTheme(!isDarkTheme.value)
         }
     }
 
@@ -50,7 +67,6 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
         val prefs     = getApplication<Application>().getSharedPreferences("streaker_prefs", Context.MODE_PRIVATE)
         val lastReset = prefs.getString("last_reset_date", "")
         val today     = repository.getTodayDate()
-
         if (lastReset != today) {
             viewModelScope.launch {
                 repository.resetDailyProgress()
@@ -76,8 +92,8 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
 
     fun signOut(onComplete: () -> Unit) {
         repository.signOut()
-        _isSignedIn.value = false
         _habits.value     = emptyList()
+        _isSignedIn.value = false
         onComplete()
     }
 
