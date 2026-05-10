@@ -13,6 +13,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -23,6 +27,21 @@ import com.josiah.streaker.model.Habit
 import com.josiah.streaker.ui.components.clickableNoRipple
 import com.josiah.streaker.ui.theme.AppColors
 import com.josiah.streaker.viewmodel.HabitViewModel
+
+data class HabitTemplate(val name: String, val emoji: String, val category: String)
+
+fun Modifier.glowEffect(): Modifier = this.drawBehind {
+    val cornerRadius = 12.dp.toPx()
+    val glowColor    = Color(0xFFFF6B2B)
+    for (i in 1..4) {
+        drawRoundRect(
+            color        = glowColor.copy(alpha = 0.08f * (5 - i)),
+            topLeft      = Offset(-i * 3f, -i * 3f),
+            size         = Size(size.width + i * 6f, size.height + i * 6f),
+            cornerRadius = CornerRadius(cornerRadius)
+        )
+    }
+}
 
 @Composable
 fun AddHabitScreen(
@@ -36,6 +55,21 @@ fun AddHabitScreen(
 
     val categories   = listOf("General", "Fitness", "Learning", "Health", "Mindfulness", "Finance")
     val emojiOptions = listOf("🔥", "🏃", "📚", "💧", "🧘", "💪", "✍️", "🎯", "🌱", "💊", "🎵", "🥗")
+
+    val templates = listOf(
+        HabitTemplate("Morning Run",     "🏃", "Fitness"),
+        HabitTemplate("Drink 8 Glasses", "💧", "Health"),
+        HabitTemplate("Read 30 Minutes", "📚", "Learning"),
+        HabitTemplate("Meditate",        "🧘", "Mindfulness"),
+        HabitTemplate("Workout",         "💪", "Fitness"),
+        HabitTemplate("Journal",         "✍️", "General"),
+        HabitTemplate("Eat Healthy",     "🥗", "Health"),
+        HabitTemplate("Practice Guitar", "🎵", "Learning"),
+        HabitTemplate("Walk 10k Steps",  "🎯", "Fitness"),
+        HabitTemplate("Take Vitamins",   "💊", "Health"),
+        HabitTemplate("No Social Media", "🌱", "Mindfulness"),
+        HabitTemplate("Save Money",      "🔥", "Finance"),
+    )
 
     Column(
         modifier = Modifier
@@ -70,7 +104,72 @@ fun AddHabitScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
         ) {
-            // Emoji Picker
+
+            // ── Templates ───────────────────────────────────────────────────
+            SectionLabel("Quick Start Templates")
+            Spacer(Modifier.height(10.dp))
+            templates.chunked(2).forEach { row ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier              = Modifier.padding(bottom = 8.dp)
+                ) {
+                    row.forEach { template ->
+                        val isTemplateSelected = name == template.name &&
+                                emoji    == template.emoji &&
+                                category == template.category
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .then(
+                                    if (isTemplateSelected) Modifier.glowEffect()
+                                    else Modifier
+                                )
+                                .background(
+                                    if (isTemplateSelected) AppColors.Ember.copy(.15f)
+                                    else AppColors.Surface2
+                                )
+                                .border(
+                                    width = if (isTemplateSelected) 1.5.dp else 1.dp,
+                                    color = if (isTemplateSelected) AppColors.Ember
+                                    else Color.White.copy(.06f),
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickableNoRipple {
+                                    name      = template.name
+                                    emoji     = template.emoji
+                                    category  = template.category
+                                    nameError = false
+                                }
+                                .padding(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(template.emoji, fontSize = 20.sp)
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        template.name,
+                                        fontSize   = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color      = if (isTemplateSelected) AppColors.Ember
+                                        else AppColors.TextPrimary
+                                    )
+                                    Text(
+                                        template.category,
+                                        fontSize = 10.sp,
+                                        color    = AppColors.TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // ── Emoji Picker ─────────────────────────────────────────────────
             SectionLabel("Choose an Icon")
             Spacer(Modifier.height(10.dp))
             emojiOptions.chunked(6).forEach { row ->
@@ -104,7 +203,7 @@ fun AddHabitScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Name Field
+            // ── Name Field ───────────────────────────────────────────────────
             SectionLabel("Habit Name")
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
@@ -138,7 +237,7 @@ fun AddHabitScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Category Picker
+            // ── Category Picker ──────────────────────────────────────────────
             SectionLabel("Category")
             Spacer(Modifier.height(10.dp))
             categories.chunked(3).forEach { row ->
@@ -168,8 +267,10 @@ fun AddHabitScreen(
                             Text(
                                 cat,
                                 fontSize   = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                color      = if (isSelected) AppColors.Ember else AppColors.TextSecondary
+                                fontWeight = if (isSelected) FontWeight.SemiBold
+                                else FontWeight.Normal,
+                                color      = if (isSelected) AppColors.Ember
+                                else AppColors.TextSecondary
                             )
                         }
                     }
@@ -179,7 +280,7 @@ fun AddHabitScreen(
                 }
             }
 
-            // Live Preview
+            // ── Live Preview ─────────────────────────────────────────────────
             if (name.isNotBlank()) {
                 Spacer(Modifier.height(24.dp))
                 SectionLabel("Preview")

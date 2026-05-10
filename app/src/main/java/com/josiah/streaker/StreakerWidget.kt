@@ -9,9 +9,11 @@ import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.action.actionStartActivity
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
 import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
 import androidx.glance.layout.*
 import androidx.glance.text.*
@@ -20,6 +22,9 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.josiah.streaker.model.Habit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class StreakerWidget : GlanceAppWidget() {
@@ -41,7 +46,7 @@ class StreakerWidget : GlanceAppWidget() {
         }
     }
 
-    private suspend fun fetchHabits(): List<Habit> {
+    suspend fun fetchHabits(): List<Habit> {
         return try {
             val userId   = Firebase.auth.currentUser?.uid ?: "test_user"
             val snapshot = Firebase.firestore
@@ -66,6 +71,21 @@ class StreakerWidget : GlanceAppWidget() {
             emptyList()
         }
     }
+
+    companion object {
+        fun forceUpdate(context: Context) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val manager = GlanceAppWidgetManager(context)
+                    val widget  = StreakerWidget()
+                    val glanceIds = manager.getGlanceIds(StreakerWidget::class.java)
+                    glanceIds.forEach { glanceId ->
+                        widget.update(context, glanceId)
+                    }
+                } catch (_: Exception) { }
+            }
+        }
+    }
 }
 
 @Composable
@@ -75,6 +95,15 @@ fun WidgetContent(
     totalStreak:   Int,
     longestStreak: Int
 ) {
+    val white = androidx.glance.color.ColorProvider(
+        day   = Color(0xFFF2F2F4),
+        night = Color(0xFFF2F2F4)
+    )
+    val grey = androidx.glance.color.ColorProvider(
+        day   = Color(0xFF8888A0),
+        night = Color(0xFF8888A0)
+    )
+
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
@@ -86,10 +115,7 @@ fun WidgetContent(
         Text(
             "🔥 Streaker",
             style = TextStyle(
-                color      = androidx.glance.color.ColorProvider(
-                    day   = Color(0xFFF2F2F4),
-                    night = Color(0xFFF2F2F4)
-                ),
+                color      = white,
                 fontSize   = 16.sp,
                 fontWeight = FontWeight.Bold
             )

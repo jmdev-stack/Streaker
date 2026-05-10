@@ -4,10 +4,12 @@ import android.app.Application
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.glance.appwidget.updateAll
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
 import com.josiah.streaker.HabitRepository
+import com.josiah.streaker.StreakerWidget
 import com.josiah.streaker.ThemePreference
 import com.josiah.streaker.model.Habit
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,8 +21,8 @@ import kotlinx.coroutines.tasks.await
 
 class HabitViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository     = HabitRepository()
-    private val auth           = Firebase.auth
+    private val repository      = HabitRepository()
+    private val auth            = Firebase.auth
     private val themePreference = ThemePreference(application)
 
     private val _habits = MutableStateFlow<List<Habit>>(emptyList())
@@ -37,9 +39,9 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
 
     val isDarkTheme: StateFlow<Boolean> = themePreference.isDarkTheme
         .stateIn(
-            scope         = viewModelScope,
-            started       = SharingStarted.WhileSubscribed(5000),
-            initialValue  = true
+            scope        = viewModelScope,
+            started      = SharingStarted.WhileSubscribed(5000),
+            initialValue = true
         )
 
     private val milestones = setOf(7, 14, 30, 60, 100, 365)
@@ -53,7 +55,16 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
             repository.getHabits().collect { habits ->
                 _habits.value    = habits
                 _isLoading.value = false
+                refreshWidget()
             }
+        }
+    }
+
+    private fun refreshWidget() {
+        viewModelScope.launch {
+            try {
+                StreakerWidget.forceUpdate(getApplication())
+            } catch (_: Exception) { }
         }
     }
 
@@ -71,6 +82,7 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 repository.resetDailyProgress()
                 prefs.edit().putString("last_reset_date", today).apply()
+                refreshWidget()
             }
         }
     }
@@ -100,12 +112,14 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
     fun addHabit(habit: Habit) {
         viewModelScope.launch {
             repository.addHabit(habit)
+            refreshWidget()
         }
     }
 
     fun deleteHabit(habit: Habit) {
         viewModelScope.launch {
             repository.deleteHabit(habit)
+            refreshWidget()
         }
     }
 
@@ -115,6 +129,7 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
             repository.updateHabit(
                 habit.copy(streak = newStreak, completedToday = true)
             )
+            refreshWidget()
         }
         if (newStreak in milestones) {
             _celebrationStreak.value = newStreak
@@ -124,6 +139,7 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
     fun updateHabit(habit: Habit) {
         viewModelScope.launch {
             repository.updateHabit(habit)
+            refreshWidget()
         }
     }
 
@@ -141,5 +157,50 @@ class HabitViewModel(application: Application) : AndroidViewModel(application) {
     fun markOnboardingSeen() {
         val prefs = getApplication<Application>().getSharedPreferences("streaker_prefs", Context.MODE_PRIVATE)
         prefs.edit().putBoolean("has_seen_onboarding", true).apply()
+    }
+
+
+    fun signUpWithEmail(
+        email:     String,
+        password:  String,
+        username:  String,
+        onSuccess: () -> Unit,
+        onError:   (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val result = auth.createUserWithEmailAndPassword(email, password).await()
+                // Update display name with username
+                val profileUpdates = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                    .setDisplayName(username)
+                    .build()
+                result.user?.updateProfile(profileUpdates)?.await()
+                _isSignedIn.value = true
+                _isLoading.value  = true
+                loadHabits()
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.message ?: "Sign up failed")
+            }
+        }
+    }
+
+    fun signInWithEmail(
+        email:     String,
+        password:  String,
+        onSuccess: () -> Unit,
+        onError:   (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                auth.signInWithEmailAndPassword(email, password).await()
+                _isSignedIn.value = true
+                _isLoading.value  = true
+                loadHabits()
+                onSuccess()
+            } catch (e: Exception) {
+                onError(e.message ?: "Sign in failed")
+            }
+        }
     }
 }
